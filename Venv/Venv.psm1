@@ -40,8 +40,7 @@ block completes.
 
 .PARAMETER Temp
 Using -Temp creates a temporary virtualenv. This is equivalent to specifying
--Make and -Remove together. (Note that a future enhancement might be to
-allow omitting the virtualenv name for temporary virtualenvs).
+-Make and -Remove together. No name is needed, a random name is used.
 
 .PARAMETER CWD
 The working directory in which to execute the script block. If not
@@ -174,9 +173,13 @@ function ve {
         # because we have a variable set of arguments.
         # The parts are single-quoted to preserve the variable references
         # till the last minute, so that Powershell will auto-quote for us.
-        $cmd = 'virtualenv $Path'
-        if ($Python) {
-            $cmd += ' -p $Python'
+        if ($Python -like "2*") {
+            # Python 2 doesn't have venv, so we need virtualenv available
+            $cmd = 'virtualenv -p $Python $Path'
+        } elseif ($Python) {
+            $cmd = 'py -$Python -m venv $Path'
+        } else {
+            $cmd = 'py -m venv $Path'
         }
         if ($CreateFlags) {
             $cmd += ' @CreateFlags'

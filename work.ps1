@@ -6,7 +6,7 @@ function ve-temp {
     # Need to expand ~
     $name = Join-Path (Resolve-Path "~/.virtualenvs") (New-Guid)
     virtualenv $name
-    pwsh -NoExit {
+    & (Get-Process -Id $pid).Path -NoExit {
         Write-Host -ForegroundColor Cyan "Launching nested prompt in virtual environment. Type 'exit' to return."
         $name = $args[0]
         echo (Join-Path $name "Scripts/activate.ps1")

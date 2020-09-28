@@ -78,10 +78,10 @@ function Use-Venv ($Name, $ScriptBlock) {
         }
     } else {
         & (Get-Process -Id $pid).Path -NoExit {
+            param([string]$env)
             Write-Host -ForegroundColor Cyan "Launching nested prompt in virtual environment. Type 'exit' to return."
-            $Name = $args[0]
-            & (Join-Path $Name "Scripts" "activate.ps1")
-        } -args $Name
+            & (Join-Path $env "Scripts" "activate.ps1")
+        } -args $env
     }
 }
 
@@ -99,4 +99,14 @@ function New-TempVenv {
 
 function Get-Venv {
     Get-ChildItem $env_location | Where-Object { Test-Path (Join-Path $_ "Scripts" "python.exe") -PathType Leaf }
+}
+
+function veCommand ([string]$cmd) {
+    switch ($cmd) {
+        "ls" { Get-Venv $args }
+        "path" { Resolve-VenvName $args }
+        "new" { New-Venv $args }
+        "temp" { New-TempVenv $args }
+        "run" { Use-Venv $args }
+    }
 }

@@ -125,23 +125,76 @@ function New-TempVenv {
     } -args $name
 }
 
-function ve_select ([String]$pattern) {
-    if ($pattern -eq "") {
-        if ($env:VIRTUAL_ENV) {
-            $env:VIRTUAL_ENV
+function ve_create ([String]$Path, [String]$Python, [String[]]$Install, [String[]]$Requirements) {
+    if ($Python) {
+        $virtualenvargs = ("-p", $Python)
+    }
+    virtualenv $Path @virtualenvargs
+    $pipargs = $Install
+    if ($Requirements) {
+        $pipargs = $pipargs, ($Requirements | Foreach-Object { "-r", $_ })
+    }
+    if ($pipargs) {
+        $pip = Join-Path $Path "Scripts" "pip.exe"
+        if (Test-Path $pip -PathType Leaf) {
+            & $pip install @pipargs
         } else {
-            (Resolve-Path -ErrorAction Ignore "./.venv").Path
+            Write-Error "Cannot install packages as venv does not include pip"
         }
-    } elseif ((Split-Path -Leaf $pattern) -eq $pattern) {
-        # If just a leaf is given, assume the venv directory
-        (Resolve-Path -ErrorAction Ignore (Join-Path $env_location $pattern)).Path
-    } else {
-        (Resolve-Path $pattern).Path
     }
 }
 
+function ve_select ([String]$pattern) {
+    # Get full venv path(s) from an env name/pattern
+    # ve_select (no args) - do we want it to work like *? What about .venv?
+    if ($pattern -eq "") {
+        if ($env:VIRTUAL_ENV) {
+            $venv = $env:VIRTUAL_ENV
+        } else {
+            $venv = "./.venv"
+        }
+    } elseif ((Split-Path -Leaf $pattern) -eq $pattern) {
+        # If just a leaf is given, assume the venv directory
+        $venv = Join-Path $env_location $pattern
+    } else {
+        $venv = $pattern
+    }
+    (Resolve-Path $venv).Path
+}
+
+function ve_data ([String]$venv) {
+    # Get a PS object representing the env
+    $cfg = Join-Path $venv "pyvenv.cfg"
+    if (!(Test-Path $cfg -PathType Leaf)) {
+        Write-Error "$env does not contain pyvenv.cfg"
+        return $null
+    }
+
+    # Double the backslashes as ConvertFrom-StringData treats them
+    # as escape characters, but pyvenv.cfg uses raw backslashes in paths
+    # The first string is a regex, so \\ matches \. The second is a literal,
+    # so the overall effect is to replace \ with \\...
+    $raw_config = ((Get-Content $cfg) -Replace '\\', '\\' | ConvertFrom-StringData)
+    $TextInfo = (Get-Culture).TextInfo
+    $config = @{}
+    foreach ($k in $raw_config.keys) {
+        # Format keys in Powershell InitCapsFormat rather than dash-separated
+        $newkey = ($TextInfo.ToTitleCase($k) -replace '[-_]','');
+        $config[$newkey] = $raw_config.$k
+    }
+
+    # Virtualenv sets VersionInfo but not Version
+    if ($null -eq $config.Version) {
+        $config.Version = ($config.VersionInfo -split '\.')[0..2] -join '.'
+    }
+
+    [PSCustomObject]$config
+}
+
 function Get-Venv {
-    Get-ChildItem $env_location | Where-Object { Test-Path (Join-Path $_ "Scripts" "python.exe") -PathType Leaf }
+    [CmdletBinding()]
+    param([String]$Name)
+    ve_select $Name | Where-Object { Test-Path (Join-Path $_ "Scripts" "python.exe") -PathType Leaf }
 }
 
 function veCommand ([string]$cmd) {

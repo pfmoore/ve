@@ -8,8 +8,9 @@
 
 $env_location = Resolve-Path ~/.virtualenvs
 
-function Resolve-VenvName ([String]$env) {
-    # TODO: Allow and respect -ErrorAction argument
+function Resolve-VenvName {
+    [CmdletBinding()]
+    param([String]$env)
 
     if (!$env) {
         $env = ".venv"
@@ -23,14 +24,41 @@ function Resolve-VenvName ([String]$env) {
     # Returns PathInfo. Could just reuse $env and return string
     $envpath = Resolve-Path -ErrorAction Ignore $env
     if ($null -eq $envpath) {
+        Write-Error "Invalid environment: $env"
         return $null
     }
+
     $python = Join-Path $envpath "Scripts" "python.exe"
-    if (Test-Path $python -PathType Leaf) {
-        $envpath
-    } else {
-        $null
+    if (!(Test-Path $python -PathType Leaf)) {
+        Write-Error "$env does not contain a Python interpreter"
+        return $null
     }
+
+    $cfg = Join-Path $envpath "pyvenv.cfg"
+    if (!(Test-Path $cfg -PathType Leaf)) {
+        Write-Error "$env does not contain pyvenv.cfg"
+        return $null
+    }
+
+    # TODO: Move the fllowing to a separate function
+
+    # Double the backslashes as ConvertFrom-StringData treats them
+    # as escape characters, but pyvenv.cfg uses raw backslashes in paths
+    $raw_config = ((Get-Content $cfg) -Replace '\\', '\\' | ConvertFrom-StringData)
+    $TextInfo = (Get-Culture).TextInfo
+    $config = @{}
+    foreach ($k in $raw_config.keys) {
+        # Format keys in Powershell InitCapsFormat
+        $newkey = ($TextInfo.ToTitleCase($k) -replace '[-_]','');
+        $config[$newkey] = $raw_config.$k
+    }
+
+    # Virtualenv sets VersionInfo but not Version
+    if ($null -eq $config.Version) {
+        $config.Version = ($config.VersionInfo -split '\.')[0..2] -join '.'
+    }
+
+    [PSCustomObject]$config
 }
 
 

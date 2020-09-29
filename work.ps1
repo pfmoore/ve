@@ -125,6 +125,21 @@ function New-TempVenv {
     } -args $name
 }
 
+function ve_select ([String]$pattern) {
+    if ($pattern -eq "") {
+        if ($env:VIRTUAL_ENV) {
+            $env:VIRTUAL_ENV
+        } else {
+            (Resolve-Path -ErrorAction Ignore "./.venv").Path
+        }
+    } elseif ((Split-Path -Leaf $pattern) -eq $pattern) {
+        # If just a leaf is given, assume the venv directory
+        (Resolve-Path -ErrorAction Ignore (Join-Path $env_location $pattern)).Path
+    } else {
+        (Resolve-Path $pattern).Path
+    }
+}
+
 function Get-Venv {
     Get-ChildItem $env_location | Where-Object { Test-Path (Join-Path $_ "Scripts" "python.exe") -PathType Leaf }
 }

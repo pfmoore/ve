@@ -144,9 +144,25 @@ function ve_create ([String]$Path, [String]$Python, [String[]]$Install, [String[
     }
 }
 
+function ve_path ([String]$name) {
+    # Get a full path for a venv
+    if ($name -eq "") {
+        $venv = "./.venv"
+    } elseif ((Split-Path -Leaf $name) -eq $name) {
+        # If just a leaf is given, assume the venv directory
+        # Put it in the first valid location on $env_location
+        $root = ((Resolve-Path -ErrorAction SilentlyContinue $env_location) | Select-Object -First 1)
+        $venv = Join-Path $root $name
+    } else {
+        $venv = $name
+    }
+    $venv
+}
+
 function ve_select ([String]$pattern) {
     # Get full venv path(s) from an env name/pattern
     # ve_select (no args) - do we want it to work like *? What about .venv?
+    # No, caller can do "if no pattern, use *" if that's what they want.
     if ($pattern -eq "") {
         if ($env:VIRTUAL_ENV) {
             $venv = $env:VIRTUAL_ENV
@@ -159,7 +175,9 @@ function ve_select ([String]$pattern) {
     } else {
         $venv = $pattern
     }
-    (Resolve-Path $venv).Path
+    # -ErrorAction SilentlyContinue ignores any paths that don't exist.
+    # Could return more than one value ($env_location could be a list)
+    (Resolve-Path -ErrorAction SilentlyContinue $venv).Path
 }
 
 function ve_data ([String]$venv) {
